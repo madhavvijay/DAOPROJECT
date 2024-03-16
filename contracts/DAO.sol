@@ -2,14 +2,14 @@
 pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract DAO is ReentrancyGuard, AccessControl {
     //STAKEHOLDER == CONTRIBUTOR && PROPOSER == STAKEHOLDER
     bytes32 private immutable STAKEHOLDER_ROLE = keccak256("STAKEHOLDER");
     bytes32 private immutable PROPOSER_ROLE = keccak256("PROPOSER");
 
-    uint256 immutable MIN_PROPOSER_CONTRIBUTION = 1 ether;
+    uint256 immutable MIN_PROPOSER_CONTRIBUTION = 40 ether;
     uint32 immutable MIN_VOTE_DURATION = 10 minutes;
 
     uint32 totalProposals;
@@ -137,18 +137,18 @@ contract DAO is ReentrancyGuard, AccessControl {
         return VotedStruct(msg.sender, block.timestamp, chosen);
     }
 
-
-     function payTo(address to, uint256 amount) internal returns (bool) {
-        
-        (bool success,) = payable(to).call{value: amount}("");
+    function payTo(address to, uint256 amount) internal returns (bool) {
+        (bool success, ) = payable(to).call{value: amount}("");
         require(success, "Payment failed");
         return true;
     }
 
-    function payBeneficiary(uint256 proposalId)
+    function payBeneficiary(
+        uint256 proposalId
+    )
         public
         proposerOnly("Unauthorized: Proposers only")
-        nonReentrant()
+        nonReentrant
         returns (uint256)
     {
         ProposalStruct storage proposal = raisedProposals[proposalId];
@@ -158,7 +158,6 @@ contract DAO is ReentrancyGuard, AccessControl {
 
         if (proposal.upvotes <= proposal.downvotes)
             revert("Insufficient votes");
-
 
         proposal.paid = true;
         proposal.executor = msg.sender;
@@ -177,19 +176,17 @@ contract DAO is ReentrancyGuard, AccessControl {
         return daoBalance;
     }
 
-    function contribute() payable public {
+    function contribute() public payable {
         require(msg.value > 0 ether, "Contributing zero is not allowed.");
         if (!hasRole(PROPOSER_ROLE, msg.sender)) {
-
-            uint256 totalContribution =
-                stakeholders[msg.sender] + msg.value;
+            uint256 totalContribution = stakeholders[msg.sender] + msg.value;
 
             if (totalContribution >= MIN_PROPOSER_CONTRIBUTION) {
                 proposers[msg.sender] = totalContribution;
-                _grantRole(PROPOSER_ROLE, msg.sender);            
+                _grantRole(PROPOSER_ROLE, msg.sender);
             }
-                stakeholders[msg.sender] += msg.value;
-                _grantRole(STAKEHOLDER_ROLE,msg.sender);
+            stakeholders[msg.sender] += msg.value;
+            _grantRole(STAKEHOLDER_ROLE, msg.sender);
         } else {
             stakeholders[msg.sender] += msg.value;
             proposers[msg.sender] += msg.value;
@@ -202,7 +199,7 @@ contract DAO is ReentrancyGuard, AccessControl {
             "CONTRIBUTION RECEIVED",
             address(this),
             msg.value
-        );   
+        );
     }
 
     function getProposals()
@@ -216,24 +213,20 @@ contract DAO is ReentrancyGuard, AccessControl {
             props[i] = raisedProposals[i];
         }
     }
-    function getProposal(uint256 proposalId)
-        external
-        view
-        returns (ProposalStruct memory)
-    {
+    function getProposal(
+        uint256 proposalId
+    ) external view returns (ProposalStruct memory) {
         return raisedProposals[proposalId];
     }
-    
-    function getVotesOf(uint256 proposalId)
-        external
-        view
-        returns (VotedStruct[] memory)
-    {
+
+    function getVotesOf(
+        uint256 proposalId
+    ) external view returns (VotedStruct[] memory) {
         return votedOn[proposalId];
     }
 
     function getProposerVotes()
-       external
+        external
         view
         proposerOnly("Unauthorized: not a proposer")
         returns (uint256[] memory)
@@ -250,7 +243,7 @@ contract DAO is ReentrancyGuard, AccessControl {
         return proposers[msg.sender];
     }
 
-    function isProposer()external view returns (bool) {
+    function isProposer() external view returns (bool) {
         return proposers[msg.sender] > 0;
     }
 
@@ -263,13 +256,11 @@ contract DAO is ReentrancyGuard, AccessControl {
         return stakeholders[msg.sender];
     }
 
-    function isStakeholder()external view returns (bool) {
+    function isStakeholder() external view returns (bool) {
         return stakeholders[msg.sender] > 0;
     }
 
     function getBalance() external view returns (uint256) {
         return stakeholders[msg.sender];
     }
-
 }
-
